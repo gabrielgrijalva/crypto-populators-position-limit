@@ -359,8 +359,8 @@ async function initializeExchangeProcesses(exchangeSettings) {
             if (derivativeSymbols.length > 0) {
                 const lockKey = `${exchangeSettings.api_name}_${instrument}`;
 
-                // Hourly cron
-                cron.schedule('0 * * * *', async () => {
+                // Every 5 minutes
+                cron.schedule('*/5 * * * *', async () => {
                     if (fetchCycleInProgress[lockKey]) {
                         logWithTimestamp(`Skipping position limits fetch cycle for ${exchangeSettings.api_name} ${instrument} - previous cycle still in progress`);
                         return;
@@ -370,7 +370,7 @@ async function initializeExchangeProcesses(exchangeSettings) {
                         fetchCycleInProgress[lockKey] = true;
                         logWithTimestamp(`Fetching position limits for ${exchangeSettings.api_name} ${instrument}...`);
 
-                        const timestamp = moment().utc().startOf('hour').format('YYYY-MM-DD HH:mm:ss');
+                        const timestamp = moment().utc().startOf('minute').format('YYYY-MM-DD HH:mm:ss');
                         const allData = await fetchAllData(exchangeInstance, derivativeSymbols, instrument, exchangeSettings.api_name);
 
                         for (const result of allData) {
