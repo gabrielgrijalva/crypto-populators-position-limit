@@ -83,6 +83,7 @@ class BitMEX extends BaseExchange {
                     initMargin,
                     maintMargin,
                     underlyingToSettleMultiplier,
+                    settlCurrency,
                 } = instr;
 
                 // Skip instruments without required risk fields
@@ -90,8 +91,20 @@ class BitMEX extends BaseExchange {
                     continue;
                 }
 
-                // Linear USDT-settled contracts have null multiplier (effectively 1)
-                const absMultiplier = underlyingToSettleMultiplier ? Math.abs(underlyingToSettleMultiplier) : 1;
+                // riskLimit is in the settlement currency's smallest unit:
+                // - XBt (satoshis): divide by 1e8 to get BTC
+                // - USDt (micro-USDT): divide by 1e6 to get USDT
+                // Use underlyingToSettleMultiplier when available (XBTUSD, ETHUSD), otherwise derive from settlCurrency
+                let absMultiplier;
+                if (underlyingToSettleMultiplier) {
+                    absMultiplier = Math.abs(underlyingToSettleMultiplier);
+                } else if (settlCurrency === 'USDt') {
+                    absMultiplier = 1e6;
+                } else if (settlCurrency === 'XBt') {
+                    absMultiplier = 1e8;
+                } else {
+                    absMultiplier = 1;
+                }
                 const tiers = [];
 
                 // Compute tiers algorithmically: tier N starts at 0
