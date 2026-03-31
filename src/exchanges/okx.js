@@ -85,9 +85,12 @@ class OKX extends BaseExchange {
     // Position limits functions
 
     async fetchPositionLimit(symbol, instrument) {
+        // OKX requires 'uly' (underlying) parameter for SWAP position tiers
+        // Derive uly by removing the trailing '-SWAP' from the instId (e.g., BTC-USDT-SWAP -> BTC-USDT)
+        const uly = symbol.replace(/-SWAP$/, '');
         const response = await this.publicRequest('api/v5/public/position-tiers', {
             instType: 'SWAP',
-            instId: symbol,
+            uly: uly,
             tdMode: 'cross',
         });
         if (response?.data?.length) {
