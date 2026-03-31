@@ -86,11 +86,12 @@ class BitMEX extends BaseExchange {
                 } = instr;
 
                 // Skip instruments without required risk fields
-                if (!riskLimit || !riskStep || !initMargin || !maintMargin || !underlyingToSettleMultiplier) {
+                if (!riskLimit || !riskStep || !initMargin || !maintMargin) {
                     continue;
                 }
 
-                const absMultiplier = Math.abs(underlyingToSettleMultiplier);
+                // Linear USDT-settled contracts have null multiplier (effectively 1)
+                const absMultiplier = underlyingToSettleMultiplier ? Math.abs(underlyingToSettleMultiplier) : 1;
                 const tiers = [];
 
                 // Compute tiers algorithmically: tier N starts at 0
