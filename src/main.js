@@ -224,6 +224,12 @@ function getAuthConfig(exchangeName) {
             headerName: 'X-BX-APIKEY',
         };
     }
+    if (exchangeName === 'huobi_usdt_swaps' || exchangeName === 'huobi_coin_swaps') {
+        return {
+            apiKey: settings.huobi_api_key,
+            apiSecret: settings.huobi_api_secret,
+        };
+    }
     return {};
 }
 

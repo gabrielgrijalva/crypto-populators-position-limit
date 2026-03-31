@@ -35,39 +35,72 @@ class HuobiCoinSwaps extends BaseExchange {
 
     // Position limits functions
 
-    async fetchAllPositionLimits(instrument) {
+    async fetchAllPositionLimits(instrument, authConfig = {}) {
         try {
-            const response = await this.publicRequest('swap-api/v1/swap_adjustfactor', {});
-
-            if (response?.status !== 'ok' || !response?.data?.length) {
+            // Fetch contract info (public) for contract_size per symbol
+            const contractInfoResponse = await this.publicRequest('swap-api/v1/swap_contract_info', {});
+            if (contractInfoResponse?.status !== 'ok' || !contractInfoResponse?.data?.length) {
                 return null;
+            }
+
+            const contractSizeMap = {};
+            for (const contract of contractInfoResponse.data) {
+                contractSizeMap[contract.contract_code] = +contract.contract_size;
+            }
+
+            // Fetch position limits (authenticated) for buy_limit/sell_limit per symbol
+            const positionLimitResponse = await this.huobiAuthenticatedRequest(
+                'swap-api/v1/swap_position_limit',
+                {},
+                authConfig
+            );
+
+            if (positionLimitResponse?.status !== 'ok' || !positionLimitResponse?.data?.length) {
+                return null;
+            }
+
+            // Fetch adjust factors (public) for max leverage per symbol
+            const adjustFactorResponse = await this.publicRequest('swap-api/v1/swap_adjustfactor', {});
+            const maxLeverageMap = {};
+            if (adjustFactorResponse?.status === 'ok' && adjustFactorResponse?.data?.length) {
+                for (const item of adjustFactorResponse.data) {
+                    let maxLever = 0;
+                    for (const entry of (item.list || [])) {
+                        if (+entry.lever_rate > maxLever) {
+                            maxLever = +entry.lever_rate;
+                        }
+                    }
+                    maxLeverageMap[item.contract_code] = maxLever;
+                }
             }
 
             const results = [];
 
-            for (const item of response.data) {
+            for (const item of positionLimitResponse.data) {
                 const symbol = item.contract_code;
-                const leverRates = item.list || [];
+                const contractSize = contractSizeMap[symbol];
 
-                // Find the highest available lever_rate for this symbol
-                let maxLeverRate = 0;
-                for (const entry of leverRates) {
-                    if (+entry.lever_rate > maxLeverRate) {
-                        maxLeverRate = +entry.lever_rate;
-                    }
-                }
+                // Skip symbols without active contract info (likely delisted)
+                if (!contractSize) continue;
 
-                if (maxLeverRate > 0) {
-                    results.push({
-                        symbol,
-                        tiers: [{
-                            leverageMin: 0,
-                            leverageMax: maxLeverRate,
-                            maxQuantity: null,
-                            maxNotional: null,
-                        }],
-                    });
-                }
+                const buyLimit = +item.buy_limit;
+                const sellLimit = +item.sell_limit;
+                const maxLeverage = maxLeverageMap[symbol] || 0;
+
+                if (maxLeverage <= 0) continue;
+
+                // Normalize: contracts × contract_size (USD per contract) = USD notional
+                const maxNotional = Math.min(buyLimit, sellLimit) * contractSize;
+
+                results.push({
+                    symbol,
+                    tiers: [{
+                        leverageMin: 1,
+                        leverageMax: maxLeverage,
+                        maxQuantity: null,
+                        maxNotional: maxNotional,
+                    }],
+                });
             }
 
             return results.length ? results : null;

@@ -35,9 +35,13 @@ class HuobiUSDTSwaps extends BaseExchange {
 
     // Position limits functions
 
-    async fetchAllPositionLimits(instrument) {
+    async fetchAllPositionLimits(instrument, authConfig = {}) {
         try {
-            const response = await this.publicRequest('linear-swap-api/v1/swap_adjustfactor', {});
+            const response = await this.huobiAuthenticatedRequest(
+                'linear-swap-api/v1/swap_lever_position_limit',
+                {},
+                authConfig
+            );
 
             if (response?.status !== 'ok' || !response?.data?.length) {
                 return null;
@@ -47,26 +51,44 @@ class HuobiUSDTSwaps extends BaseExchange {
 
             for (const item of response.data) {
                 const symbol = item.contract_code;
-                const leverRates = item.list || [];
+                const leverEntries = item.list || [];
 
-                // Find the highest available lever_rate for this symbol
-                let maxLeverRate = 0;
-                for (const entry of leverRates) {
-                    if (+entry.lever_rate > maxLeverRate) {
-                        maxLeverRate = +entry.lever_rate;
+                if (!leverEntries.length) continue;
+
+                // Condense per-lever_rate entries into tiers where limit value changes
+                const tiers = [];
+                let currentLimit = null;
+                let tierStartRate = null;
+
+                for (const entry of leverEntries) {
+                    const limitValue = Math.min(entry.buy_limit_value, entry.sell_limit_value);
+
+                    if (limitValue !== currentLimit) {
+                        if (currentLimit !== null) {
+                            tiers.push({
+                                leverageMin: tierStartRate,
+                                leverageMax: entry.lever_rate - 1,
+                                maxQuantity: null,
+                                maxNotional: currentLimit,
+                            });
+                        }
+                        currentLimit = limitValue;
+                        tierStartRate = entry.lever_rate;
                     }
                 }
 
-                if (maxLeverRate > 0) {
-                    results.push({
-                        symbol,
-                        tiers: [{
-                            leverageMin: 0,
-                            leverageMax: maxLeverRate,
-                            maxQuantity: null,
-                            maxNotional: null,
-                        }],
+                // Push final tier
+                if (currentLimit !== null) {
+                    tiers.push({
+                        leverageMin: tierStartRate,
+                        leverageMax: leverEntries[leverEntries.length - 1].lever_rate,
+                        maxQuantity: null,
+                        maxNotional: currentLimit,
                     });
+                }
+
+                if (tiers.length > 0) {
+                    results.push({ symbol, tiers });
                 }
             }
 
