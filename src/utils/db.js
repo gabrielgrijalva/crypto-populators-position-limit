@@ -37,7 +37,7 @@ async function createTable(tableName) {
                 leverage_max DECIMAL(10,2) NOT NULL,
                 max_quantity DECIMAL(30,8) NULL,
                 max_notional DECIMAL(30,2) NULL,
-                PRIMARY KEY (timestamp, leverage_min)
+                PRIMARY KEY (timestamp, leverage_max)
             )
         `;
 
@@ -59,7 +59,7 @@ async function insertPositionLimitsData(tableName, data) {
             INSERT INTO ${tableName} (timestamp, leverage_min, leverage_max, max_quantity, max_notional)
             VALUES ?
             ON DUPLICATE KEY UPDATE
-                leverage_max = VALUES(leverage_max),
+                leverage_min = VALUES(leverage_min),
                 max_quantity = VALUES(max_quantity),
                 max_notional = VALUES(max_notional)
         `;
