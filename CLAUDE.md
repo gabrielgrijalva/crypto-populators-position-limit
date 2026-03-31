@@ -242,7 +242,29 @@ Log files:
 
 - **Git remote**: `git@github.com:gabrielgrijalva/crypto-populators-position-limit.git`
 - **Deploy path**: `/home/ubuntu/crypto-populators-position-limit`
-- **Deployment process**: Manual — pull changes, `npm install` if deps changed, `pm2 restart position-limits`
+
+The production VM must have SSH-based git credentials configured (`~/.ssh/` key registered with GitHub) so that it can pull from the remote repository. The project on the VM is a git-tracked clone of the repo.
+
+**Initial setup on production VM**:
+```bash
+cd /home/ubuntu
+git clone git@github.com:gabrielgrijalva/crypto-populators-position-limit.git
+cd crypto-populators-position-limit
+npm install
+# Create settings.js with production credentials (DB, API keys, proxy IPs)
+pm2 start src/main.js --name position-limits
+pm2 save
+```
+
+**Deploying updates**:
+```bash
+cd /home/ubuntu/crypto-populators-position-limit
+git pull origin main
+npm install        # only if dependencies changed
+pm2 restart position-limits
+```
+
+All code changes must be committed and pushed to the remote, then pulled on the production VM. Never edit source files directly on the VM — only `settings.js` (which is gitignored) should be created/edited on the VM.
 
 ## Common Tasks
 
